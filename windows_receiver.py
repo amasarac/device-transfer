@@ -1,144 +1,203 @@
-import cv2
+import socket
+import ssl
 import pyaudio
-import socket
-import struct
-import threading
-import time
+import cv2
 import numpy as np
-from zeroconf import Zeroconf, ServiceBrowser
-import socket
-import pyvjoy
-import sys
+import struct
+import json
 import ctypes
+import platform
+import os
+import psutil
+import win32file
+import win32net
+import win32wnet
+from zeroconf import Zeroconf, ServiceBrowser
 
-# Constants
-IP_ADDRESS = '0.0.0.0'
-PORT = 12345
-AUDIO_CHUNK_SIZE = 1024
-VIDEO_WIDTH = 640
-VIDEO_HEIGHT = 480
+AUDIO_PORT = 8000
+VIDEO_PORT = 8001
+INPUT_DEVICES_PORT = 8002
+CERT_FILE = "cert.pem"
 
-class USBTransferListener:
+class MyListener:
     def __init__(self):
-        self.found_service = None
-        self.cv = threading.Condition()
+        self.services = []
 
-    def remove_service(self, zeroconf, service_type, service_name):
+    def remove_service(self, zeroconf, service_type, name):
+        self.services.remove(name)
+
+    def add_service(self, zeroconf, service_type, name):
+        info = zeroconf.get_service_info(service_type, name)
+        self.services.append(info)
+
+def save_cert(cert_data):
+    with open(CERT_FILE, "wb") as cert_file:
+        cert_file.write(cert_data)
+
+def get_service_info(zeroconf, service_type):
+    listener = MyListener()
+    browser = ServiceBrowser(zeroconf, service_type, listener)
+    while not listener.services:
         pass
+    return listener.services[0]
 
-    def update_service(self, zeroconf, service_type, service_name):
-        pass
+def connect_service(service_info, port):
+    address = socket.inet_ntoa(service_info.addresses[0])
+    sock = socket.create_connection((address, port))
 
-    def add_service(self, zeroconf, service_type, service_name):
-        info = zeroconf.get_service_info(service_type, service_name)
-        with self.cv:
-            self.found_service = info
-            self.cv.notify_all()
+    if port != 445:  # Do not wrap SAMBA connection in SSL
+        sock = ssl.wrap_socket(sock, cert_reqs=ssl.CERT_REQUIRED, ca_certs=CERT_FILE, server_side=False)
+
+    return sock
 
 def receive_audio_stream():
-    # Create a PyAudio object for audio stream output
-    audio = pyaudio.PyAudio()
-    stream = audio.open(format=pyaudio.paInt16,
-                        channels=2,
-                        rate=44100,
-                        output=True)
+    zeroconf = Zeroconf()
+    service_type = "_audio._tcp.local."
+    service_info = get_service_info(zeroconf, service_type)
+    zeroconf.close()
 
-    # Create a socket for audio stream reception
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind((IP_ADDRESS, PORT + 1))
-        sock.listen(1)
-        conn, addr = sock.accept()
+    sock = connect_service(service_info, AUDIO_PORT)
 
+    p = pyaudio.PyAudio()
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 44100
+    CHUNK = 1024
+
+    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True, frames_per_buffer=CHUNK)
+
+    try:
         while True:
-            data_len = conn.recv(4)
-            if not data_len:
-                break
-            data_len = struct.unpack('>I', data_len)[0]
-            data = conn.recv(data_len)
+            data_len = struct.unpack('<L', sock.recv(4))[0]
+            data = sock.recv(data_len)
             stream.write(data)
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        print("Audio stream disconnected")
+
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+    sock.close()
 
 def receive_video_stream():
-    # Create a window to display the video stream
-    cv2.namedWindow('Video Stream', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('Video Stream', VIDEO_WIDTH, VIDEO_HEIGHT)
+    zeroconf = Zeroconf()
+    service_type = "_video._tcp.local."
+    service_info = get_service_info(zeroconf, service_type)
+    zeroconf.close()
 
-    # Create a socket for video stream reception
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind((IP_ADDRESS, PORT + 2))
-        sock.listen(1)
-        conn, addr = sock.accept()
+    sock = connect_service(service_info, VIDEO_PORT)
 
+    try:
         while True:
-            data_len = conn.recv(4)
-            if not data_len:
+            # Receive the size of the frame
+            data_len = struct.unpack('<L', sock.recv(4))[0]
+            data = sock.recv(data_len)
+            frame = np.frombuffer(data, dtype=np.uint8).reshape((240, 320, 3))
+            cv2.imshow('USB Video Stream', frame)
+            if cv2.waitKey(1) == ord('q'):
                 break
-            data_len = struct.unpack('>I', data_len)[0]
-            data = conn.recv(data_len)
-            np_data = np.frombuffer(data, dtype=np.uint8)
-            frame = cv2.imdecode(np_data, 1)
-            cv2.imshow('Video Stream', frame)
-            if cv2.waitKey(1) == 27:  # Escape key
-                break
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        print("Video stream disconnected")
+
+    cv2.destroyAllWindows()
+    sock.close()
 
 def receive_input_devices():
-    # Create a virtual joystick object
-    joystick = pyvjoy.VJoyDevice(1)
+    zeroconf = Zeroconf()
+    service_type = "_input._tcp.local."
+    service_info = get_service_info(zeroconf, service_type)
+    zeroconf.close()
 
-    # Create a socket for input device reception
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind((IP_ADDRESS, PORT))
-        sock.listen(1)
-        conn, addr = sock.accept()
+    sock = connect_service(service_info, INPUT_DEVICES_PORT)
 
-        while True:
-            data = conn.recv(12)
+    while True:
+        try:
+            data = sock.recv(1024)
             if not data:
                 break
-            device_type, event_type, event_code, *args = struct.unpack('>BBhii', data)
 
-            if device_type == 0x01:  # Keyboard events
-                if event_type == 0x01:  # Key down
-                    ctypes.windll.user32.keybd_event(event_code, 0, 0, 0)
-                elif event_type == 0x02:  # Key up
-                    ctypes.windll.user32.keybd_event(event_code, 0, 0x0002, 0)
+            input_data = json.loads(data.decode('utf-8'))
+            event_type = input_data['type']
+            event = input_data['event']
 
-            elif device_type == 0x02:  # Mouse events
-                if event_type == 0x01:  # Button down
-                    ctypes.windll.user32.mouse_event(0x0002 if event_code == 0 else 0x0010, 0, 0, 0, 0)
-                elif event_type == 0x02:  # Button up
-                    ctypes.windll.user32.mouse_event(0x0004 if event_code == 0 else 0x0020, 0, 0, 0, 0)
-                elif event_type == 0x03:  # Move
-                    x, y = args
-                    ctypes.windll.user32.SetCursorPos(x, y)
+            # Key down
+            if event_type == "key" and event == "down":
+                key_code = int(input_data['key_code'])
+                win32api.keybd_event(key_code, 0, 0, 0)
 
-def main():
-    listener = USBTransferListener()
+            # Key up
+            elif event_type == "key" and event == "up":
+                key_code = int(input_data['key_code'])
+                win32api.keybd_event(key_code, 0, win32con.KEYEVENTF_KEYUP, 0)
+
+            # Mouse move
+            elif event_type == "mouse" and event == "move":
+                x, y = input_data['x'], input_data['y']
+                ctypes.windll.user32.SetCursorPos(x, y)
+
+            # Mouse click
+            elif event_type == "mouse" and event == "click":
+                x, y = input_data['x'], input_data['y']
+                button = input_data['button']
+                pressed = input_data['pressed']
+                if button == "left":
+                    button_event = win32con.MOUSEEVENTF_LEFTDOWN if pressed else win32con.MOUSEEVENTF_LEFTUP
+                elif button == "right":
+                    button_event = win32con.MOUSEEVENTF_RIGHTDOWN if pressed else win32con.MOUSEEVENTF_RIGHTUP
+                elif button == "middle":
+                    button_event = win32con.MOUSEEVENTF_MIDDLEDOWN if pressed else win32con.MOUSEEVENTF_MIDDLEUP
+                ctypes.windll.user32.mouse_event(button_event, x, y, 0, 0)
+
+            # Mouse scroll
+            elif event_type == "mouse" and event == "scroll":
+                x, y = input_data['x'], input_data['y']
+                dx, dy = input_data['dx'], input_data['dy']
+                ctypes.windll.user32.mouse_event(win32con.MOUSEEVENTF_WHEEL, x, y, int(dy * 120), 0)
+
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            print("Input devices disconnected")
+            break
+
+    sock.close()
+
+def mount_shared_drive():
     zeroconf = Zeroconf()
-    service_browser = ServiceBrowser(zeroconf, "_usb_transfer._tcp.local.", listener)
+    service_type = "_smb._tcp.local."
+    service_info = get_service_info(zeroconf, service_type)
+    zeroconf.close()
 
-    with listener.cv:
-        while not listener.found_service:
-            listener.cv.wait()
+    address = socket.inet_ntoa(service_info.addresses[0])
+    unc_path = f"\\\\{address}\\{service_info.name}"
 
-    linux_service = listener.found_service
-    IP_ADDRESS = socket.inet_ntoa(linux_service.addresses[0])
-    PORT = linux_service.port
+    for letter in range(ord("Z"), ord("A") - 1, -1):
+        drive_letter = chr(letter) + ":"
+        try:
+            win32file.GetDiskFreeSpaceEx(drive_letter)
+        except OSError:
+            break
 
-    # Threads for receiving audio and video streams
+    win32wnet.WNetAddConnection2(win32net.RESOURCETYPE_DISK, drive_letter, unc_path, None, None, None)
+
+if __name__ == "__main__":
+    zeroconf = Zeroconf()
+    service_type = "_bonjour._tcp.local."
+    service_info = get_service_info(zeroconf, service_type)
+    zeroconf.close()
+
+    cert_data = ssl.PEM_cert_to_DER_cert(service_info.text[0].encode())
+    save_cert(cert_data)
+
     audio_thread = threading.Thread(target=receive_audio_stream)
-    video_thread = threading.Thread(target=receive_video_stream)
-    input_devices_thread = threading.Thread(target=receive_input_devices)
-
     audio_thread.start()
+
+    video_thread = threading.Thread(target=receive_video_stream)
     video_thread.start()
+
+    input_devices_thread = threading.Thread(target=receive_input_devices)
     input_devices_thread.start()
+
+    mount_shared_drive()
 
     audio_thread.join()
     video_thread.join()
     input_devices_thread.join()
-
-    zeroconf.close()
-
-if __name__ == '__main__':
-    main()
-
