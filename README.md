@@ -22,12 +22,12 @@ ___
 
 # To install the Python script named "usb_transfer.py" to run at the start of a Steam Link booting up and remain running even if you open another application, you can follow these steps:
 
-##Connect to your Steam Link device via SSH. You can do this by enabling the developer options on your Steam Link and using an SSH client to connect to the device.
+## Connect to your Steam Link device via SSH. You can do this by enabling the developer options on your Steam Link and using an SSH client to connect to the device.
 
-###Create a new systemd service file by running the following command:
+### Create a new systemd service file by running the following command:
 sudo nano /etc/systemd/system/usb_transfer.service
 
-##In the nano editor, add the following lines to the service file:
+## In the nano editor, add the following lines to the service file:
 ```
 [Unit]
 Description=USB Transfer Python Script
@@ -45,23 +45,23 @@ SyslogIdentifier=usb_transfer
 WantedBy=multi-user.target
 ```
 
-###Replace /path/to/ with the actual path to your Python script.
+### Replace /path/to/ with the actual path to your Python script.
 ```
 Save and close the nano editor by pressing Ctrl+X, then Y, and then Enter.
 ```
-###Reload the systemd daemon by running the following command:
+### Reload the systemd daemon by running the following command:
 ```bash
 sudo systemctl daemon-reload
 ```
-##Enable the new service to start on boot by running the following command:
+## Enable the new service to start on boot by running the following command:
 ```bash
 sudo systemctl enable usb_transfer.service
 ```
-##Start the service by running the following command:
+## Start the service by running the following command:
 ```bash
 sudo systemctl start usb_transfer.service
 ```
-##The USB Transfer Python script should now start running at the start of the Steam Link booting up and remain running even if you open another application. You can check the status of the service by running the following command:
+## The USB Transfer Python script should now start running at the start of the Steam Link booting up and remain running even if you open another application. You can check the status of the service by running the following command:
 ```bash
 sudo systemctl status usb_transfer.service
 ```
