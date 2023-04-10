@@ -13,7 +13,7 @@ import win32file
 import win32net
 import win32wnet
 from typing import Optional
-from zeroconf import Zeroconf, ServiceBrowser,  ServiceListener, ServiceInfo
+from zeroconf import Zeroconf, ServiceBrowser,  ServiceListener as ServiceListenerBase, ServiceInfo
 
 AUDIO_PORT = 8000
 VIDEO_PORT = 8001
@@ -31,7 +31,7 @@ class MyListener:
         info = zeroconf.get_service_info(service_type, name)
         self.services.append(info)
 
-class CustomServiceListener(ServiceListener):
+class CustomServiceListener(ServiceListenerBase):
 
     def __init__(self):
         self.service_info: Optional[ServiceInfo] = None
