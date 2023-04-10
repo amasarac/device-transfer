@@ -65,7 +65,7 @@ python3 ~/usb_sharing/linux_script.py
 
 # Install necessary Windows dependencies:
 
-# Download and install the Visual Studio Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# Download and install the Visual Studio SDK Build Tools Core: https://visualstudio.microsoft.com/visual-cpp-build-tools/
 
 # Install the v4l2loopback equivalent on Windows (for example, use OBS Virtual Camera): https://obsproject.com/forum/resources/obs-virtualcam.539/
 
