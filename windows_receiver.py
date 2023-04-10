@@ -12,7 +12,8 @@ import psutil
 import win32file
 import win32net
 import win32wnet
-from zeroconf import Zeroconf, ServiceBrowser
+from typing import Optional
+from zeroconf import Zeroconf, ServiceBrowser, ServiceInfo
 
 AUDIO_PORT = 8000
 VIDEO_PORT = 8001
@@ -30,6 +31,34 @@ class MyListener:
         info = zeroconf.get_service_info(service_type, name)
         self.services.append(info)
 
+class CustomServiceListener(ServiceListener):
+
+    def __init__(self):
+        self.service_info: Optional[ServiceInfo] = None
+
+    def remove_service(self, zeroconf: Zeroconf, type_: str, name: str) -> None:
+        pass
+
+    def add_service(self, zeroconf: Zeroconf, type_: str, name: str) -> None:
+        self.service_info = zeroconf.get_service_info(type_, name)
+        print(f"Service {name} added, service info: {self.service_info}")
+
+    def update_service(self, zeroconf: Zeroconf, type_: str, name: str) -> None:
+        self.service_info = zeroconf.get_service_info(type_, name)
+        print(f"Service {name} updated, service info: {self.service_info}")
+
+
+def get_service_info(zeroconf: Zeroconf, service_type: str):
+    listener = CustomServiceListener()
+    browser = zeroconf.add_service_listener(service_type, listener)
+
+    # Waiting for the listener to receive service information
+    while listener.service_info is None:
+        pass
+
+    zeroconf.remove_service_listener(browser)
+    return listener.service_info        
+        
 def save_cert(cert_data):
     with open(CERT_FILE, "wb") as cert_file:
         cert_file.write(cert_data)
