@@ -63,13 +63,6 @@ def save_cert(cert_data):
     with open(CERT_FILE, "wb") as cert_file:
         cert_file.write(cert_data)
 
-def get_service_info(zeroconf, service_type):
-    listener = MyListener()
-    browser = ServiceBrowser(zeroconf, service_type, listener)
-    while not listener.services:
-        pass
-    return listener.services[0]
-
 def connect_service(service_info, port):
     address = socket.inet_ntoa(service_info.addresses[0])
     sock = socket.create_connection((address, port))
