@@ -73,7 +73,7 @@ python3 ~/usb_sharing/linux_script.py
 
 # Install the required Python libraries:
 ```
-pip install numpy opencv-python-headless pyaudio pyzmq zeroconf pybonjour psutil pywin32 pypiwin32
+pip install numpy opencv-python-headless pyaudio pyzmq zeroconf psutil pywin32 pypiwin32
 ```
 # Place the Windows Python script in a directory of your choice, let's say C:\usb_sharing:
 ```
