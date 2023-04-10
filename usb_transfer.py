@@ -200,9 +200,12 @@ def transfer_input_devices():
     conn.close()
     sock.close()
 
-
+def generate_self_signed_cert():
+    CERT_FILE = "cert.pem"
+    KEY_FILE = "key.pem"
+    
 def main():
-    generate_self_signed_cert(CERT_FILE, KEY_FILE)
+    generate_self_signed_cert()
 
     # Register services
     zeroconf_audio, service_info_audio = register_audio_stream()
