@@ -25,15 +25,13 @@ ___
 
 # Update the package list and install necessary dependencies:
 ```bash
-sql
-Copy code
 sudo apt-get update
 sudo apt-get upgrade
 sudo apt-get install python3 python3-pip v4l2loopback-dkms v4l2loopback-utils ffmpeg smbclient
 ```
 # Install the required Python libraries:
 
-```bashCopy code
+```bash
 pip3 install numpy opencv-python-headless pyaudio pyzmq pybonjour pysmb
 ```
 # Install and configure the v4l2loopback kernel module:
