@@ -16,7 +16,7 @@ import tempfile
 from OpenSSL import crypto
 
 # Constants
-IP_ADDRESS = get_ip_address()  # Change this to your Linux machine's IP address  if you have a static ip
+
 AUDIO_PORT = 8000
 VIDEO_PORT = 8001
 INPUT_DEVICES_PORT = 8002
@@ -37,6 +37,7 @@ def get_ip_address():
     finally:
         s.close()
     return IP
+IP_ADDRESS = get_ip_address()  # Change this to your Linux machine's IP address  if you have a static ip
 
 def generate_self_signed_cert():
     key = crypto.PKey()
