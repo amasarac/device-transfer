@@ -16,7 +16,7 @@ import tempfile
 from OpenSSL import crypto
 
 # Constants
-IP_ADDRESS = "0.0.0.0"  # Change this to your Linux machine's IP address
+IP_ADDRESS = get_ip_address()  # Change this to your Linux machine's IP address  if you have a static ip
 AUDIO_PORT = 8000
 VIDEO_PORT = 8001
 INPUT_DEVICES_PORT = 8002
@@ -26,6 +26,17 @@ SAMBA_PORT = 445
 
 CERT_FILE = "cert.pem"
 KEY_FILE = "key.pem"
+
+def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = "127.0.0.1"
+    finally:
+        s.close()
+    return IP
 
 def generate_self_signed_cert():
     key = crypto.PKey()
