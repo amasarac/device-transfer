@@ -37,6 +37,7 @@ def get_ip_address():
     finally:
         s.close()
     return IP
+
 IP_ADDRESS = get_ip_address()  # Change this to your Linux machine's IP address  if you have a static ip
 
 def generate_self_signed_cert():
